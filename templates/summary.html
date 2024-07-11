@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ summary['Section'].split('\n')[0] | striptags if 'Section' in summary else 'Video Summary' }}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
+    <style>
+        body {
+            font-family: 'Poppins', Arial, sans-serif;
+            background-color: #1b1b1b;
+            color: #fff;
+            margin: 0;
+            padding: 0;
+        }
+        .container {
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #333;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
+            border-radius: 10px;
+        }
+        h1 {
+            text-align: center;
+            color: #6495ED;
+            font-size: 36px;
+        }
+        .summary-sections, .transcript-text, .frames-container {
+            background: #444;
+            padding: 10px;
+            border: 1px solid #555;
+            border-radius: 5px;
+            margin-bottom: 10px;
+        }
+        .frames-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        .frame {
+            flex: 1 1 calc(33.333% - 20px);
+            box-sizing: border-box;
+            background: #222;
+            padding: 10px;
+            border: 1px solid #555;
+            border-radius: 5px;
+            text-align: center;
+        }
+        .frame img {
+            max-width: 100%;
+            height: auto;
+            display: block;
+            margin-bottom: 10px;
+            border-radius: 5px;
+        }
+        .buttons-container {
+            text-align: center;
+            margin-bottom: 20px;
+            margin-top: 20px;
+        }
+        .buttons-container i {
+            font-size: 24px;
+            margin: 0 10px;
+            cursor: pointer;
+            color: #6495ED;
+            transition: color 0.3s;
+        }
+        .buttons-container i:hover {
+            color: #4682B4;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>{{ summary['Section'].split('\n')[0] | striptags if 'Section' in summary else 'Video Summary' }}</h1>
+        <!-- Debug: Output the title to console -->
+        <script>
+            console.log("Summary Title: {{ summary['Section'].split('\n')[0] if 'Section' in summary else 'Video Summary' }}");
+        </script>
+
+        <!-- YouTube Video Embed -->
+        <div class="video-container">
+            {% if youtube_url %}
+                <iframe width="100%" height="450" src="https://www.youtube.com/embed/{{ youtube_url.split('=')[-1] }}" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+            {% else %}
+                <p>No video available.</p>
+            {% endif %}
+        </div>
+
+        <!-- Icon buttons -->
+        <div class="buttons-container">
+            <i class="fas fa-volume-up" onclick="readText('summary-content', '{{ language }}')" title="Read Summary"></i>
+            <i class="fas fa-pause" onclick="pauseText()" title="Pause"></i>
+            <i class="fas fa-stop" onclick="stopText()" title="Stop"></i>
+        </div>
+
+        <!-- Existing summary and frames code -->
+        <div class="summary-sections" id="summary-content">
+            {% for section, content in summary.items() %}
+                <div>{{ content | markdown | safe }}</div>
+            {% endfor %}
+        </div> 
+
+        <!-- Commented out transcript sections -->
+        <!--
+        <h2>Transcript</h2>
+        <div class="transcript-text">{{ transcript }}</div>
+        {% if highlighted_transcript %}
+        <h2>Highlighted Transcript</h2>
+        <div class="transcript-text">{{ highlighted_transcript }}</div>
+        {% endif %}
+        -->
+
+        <h2>Key Frames</h2>
+        <div class="frames-container">
+            {% for frame in matched_frames %}
+                <div class="frame">
+                    <img src="{{ frame.frame_url }}" alt="{{ frame.frame }}">
+                    <p>{{ frame.description }}</p>
+                </div>
+            {% endfor %}
+        </div>
+
+    </div>
+
+    <script>
+        let currentSpeech;
+        let currentElementId;
+        let audioElement;
+
+        async function readText(elementId, language) {
+            const element = document.getElementById(elementId);
+            if (!element) {
+                console.error(`Element with id ${elementId} not found.`);
+                return;
+            }
+
+            const text = element.innerText || element.textContent;
+            currentElementId = elementId;
+            currentSpeech = text;
+
+            console.log(`Sending text to TTS API: ${text}`);
+
+            const response = await fetch('/read_text', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ text: currentSpeech, language: language })
+            });
+
+            if (response.status === 200) {
+                const audioBlob = await response.blob();
+                const audioUrl = URL.createObjectURL(audioBlob);
+                if (audioElement) {
+                    audioElement.pause();
+                }
+                audioElement = new Audio(audioUrl);
+                audioElement.play();
+            } else {
+                const data = await response.json();
+                console.log(`TTS API response:`, data);
+                alert('Error in TTS conversion: ' + data.message);
+            }
+        }
+
+        function pauseText() {
+            if (audioElement) {
+                audioElement.pause();
+            }
+        }
+
+        function stopText() {
+            if (audioElement) {
+                audioElement.pause();
+                audioElement.currentTime = 0;
+            }
+        }
+    </script>
+</body>
+</html>

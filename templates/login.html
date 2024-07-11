@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YouTube Video Summarizer</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f4;
+            margin: 0;
+            padding: 0;
+            display: flex;
+        }
+        .sidebar {
+            width: 250px;
+            background: #333;
+            color: #fff;
+            padding: 20px;
+            height: 100vh;
+            position: fixed;
+            overflow-y: auto;
+        }
+        .sidebar h2 {
+            margin-top: 0;
+        }
+        .sidebar ul {
+            list-style-type: none;
+            padding: 0;
+        }
+        .sidebar ul li {
+            margin-bottom: 10px;
+        }
+        .sidebar ul li a {
+            color: #fff;
+            text-decoration: none;
+        }
+        .sidebar ul li a:hover {
+            text-decoration: underline;
+        }
+        .container {
+            margin-left: 270px;
+            padding: 20px;
+            max-width: calc(100% - 290px);
+        }
+        h1 {
+            text-align: center;
+            color: #333;
+        }
+        form {
+            display: flex;
+            flex-direction: column;
+        }
+        label {
+            margin-bottom: 5px;
+            color: #555;
+        }
+        input[type="text"],
+        textarea,
+        select {
+            margin-bottom: 20px;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 16px;
+            color: #000;
+        }
+        input[type="text"]::placeholder,
+        textarea::placeholder {
+            color: #999;
+        }
+        input[type="text"]:focus::placeholder,
+        textarea:focus::placeholder {
+            color: transparent;
+        }
+        button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            background: #5cb85c;
+            color: #fff;
+            font-size: 16px;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #4cae4c;
+        }
+        .flashes {
+            list-style-type: none;
+            padding: 0;
+        }
+        .flashes li {
+            background: #f2dede;
+            color: #a94442;
+            padding: 10px;
+            margin-bottom: 10px;
+            border: 1px solid #ebccd1;
+            border-radius: 5px;
+        }
+        h2 {
+            color: #333;
+        }
+        .summary-sections, .transcript-text, .key-frames {
+            background: #f9f9f9;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            white-space: pre-wrap;
+        }
+        .key-frame {
+            margin-bottom: 20px;
+        }
+        .progress-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100px;
+        }
+        .dots {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100%;
+        }
+        .dot {
+            width: 10px;
+            height: 10px;
+            margin: 0 5px;
+            background-color: #fff;
+            border-radius: 50%;
+            display: inline-block;
+            animation: bounce 1s infinite;
+        }
+        .dot:nth-child(2) {
+            animation-delay: 0.2s;
+        }
+        .dot:nth-child(3) {
+            animation-delay: 0.4s;
+        }
+        @keyframes bounce {
+            0%, 80%, 100% {
+                transform: scale(0);
+            }
+            40% {
+                transform: scale(1);
+            }
+        }
+        .previous-requests {
+            margin-top: 20px;
+        }
+        .previous-request {
+            border: 1px solid #ddd;
+            padding: 10px;
+            margin-bottom: 10px;
+            background: #f9f9f9;
+            border-radius: 5px;
+        }
+        .previous-request h3 {
+            margin: 0 0 10px;
+        }
+        .previous-request p {
+            margin: 0;
+        }
+        .previous-request-details {
+            margin: 10px 0;
+        }
+        .status-container {
+            margin-top: 20px;
+        }
+        .buttons-container {
+            margin: 20px 0;
+            text-align: center;
+        }
+        .buttons-container button {
+            margin: 0 10px;
+        }
+        .frames-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        .frame {
+            flex: 1 1 calc(33.333% - 20px);
+            box-sizing: border-box;
+            background: #f9f9f9;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .frame img {
+            max-width: 100%;
+            height: auto;
+            display: block;
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="sidebar">
+        <h2>Previous Summarizations</h2>
+        <ul>
+            {% for request in previous_requests %}
+                <li>
+                    <a href="#summary-{{ request.job_id }}" onclick="scrollToSummary('{{ request.job_id }}')">
+                        {{ request.youtube_url }}
+                    </a>
+                </li>
+            {% endfor %}
+        </ul>
+    </div>
+    <div class="container">
+        <h1>YouTube Video Summarizer</h1>
+        <p><strong>Disclaimer:</strong> No videos longer than 15 minutes.</p>
+        <form method="POST" onsubmit="showLoading()">
+            <label for="youtube_url">YouTube URL:</label>
+            <input type="text" id="youtube_url" name="youtube_url" placeholder="e.g., https://www.youtube.com/watch?v=abcdefghijk" required>
+
+            <label for="custom_prompt">Custom Prompt for GPT:</label>
+            <textarea id="custom_prompt" name="custom_prompt" placeholder="e.g., Summarize the key points about climate change mentioned in the video" required></textarea>
+
+            <label for="look_for">What to Look For:</label>
+            <textarea id="look_for" name="look_for" placeholder="e.g., climate change, global warming, environmental impact" required></textarea>
+
+            <label for="language">Language:</label>
+            <select id="language" name="language" required>
+                <option value="english">English</option>
+                <option value="japanese">Japanese</option>
+            </select>
+
+            <button id="summarize-button" type="submit">Summarize</button>
+        </form>
+        <div id="loading" class="progress-container" style="display:none;">
+            <div class="dots">
+                <div class="dot"></div>
+                <div class="dot"></div>
+                <div class="dot"></div>
+            </div>
+        </div>
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <ul class="flashes">
+                    {% for category, message in messages %}
+                        <li class="{{ category }}">{{ message }}</li>
+                    {% endfor %}
+                </ul>
+            {% endif %}
+        {% endwith %}
+        <div class="results">
+            {% if summary %}
+                <h2>1. Summary:</h2>
+                <div id="summary-sections" class="summary-sections">
+                    {% for section, content in summary.items() %}
+                        <h3>{{ section }}</h3>
+                        <div class="summary-{{ section|lower|replace(' ', '-') }}">{{ content|safe }}</div>
+                    {% endfor %}
+                </div>
+
+                <h2>2. Transcript:</h2>
+                <p class="transcript-text">{{ transcript|safe }}</p>
+                
+                <h2>3. Actions:</h2>
+                <div class="buttons-container">
+                    <button type="button" onclick="readText('summary-sections', '{{ language }}')">Read Summary</button>
+                    <button type="button" onclick="pauseText()">Pause</button>
+                    <button type="button" onclick="stopText()">Stop</button>
+                </div>
+            {% endif %}
+        </div>
+
+        {% if matched_frames %}
+        <h2>4. Matched Frames (Total: {{ matched_frames|length }}):</h2>
+        <div class="frames-container">
+            {% for frame in matched_frames %}
+                <div class="frame">
+                    <img src="{{ frame.frame }}" alt="{{ frame.frame }}">
+                    <p>{{ frame.description }}</p>
+                </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <div class="previous-requests">
+            <h2>Previous Summarizations</h2>
+            {% for request in previous_requests %}
+                <div class="previous-request" id="result-{{ request.job_id }}">
+                    <h3><a href="{{ request.youtube_url }}" target="_blank">{{ request.youtube_url }}</a></h3>
+                    <div class="previous-request-details">
+                        <p><strong>Custom Prompt:</strong> {{ request.custom_prompt }}</p>
+                        <p><strong>Look For:</strong> {{ request.look_for }}</p>
+                        <p><strong>Language:</strong> {{ request.language }}</p>
+                    </div>
+                    <h3>Summary:</h3>
+                    <button onclick="checkStatus('{{ request.job_id }}')">Check Status</button>
+                    <p id="status-{{ request.job_id }}">Status: Checking...</p>
+                </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <script>
+        let currentSpeech;
+        let currentElementId;
+        let audioElement;
+
+        async function readText(elementId, language) {
+            const element = document.getElementById(elementId);
+            if (!element) {
+                console.error(`Element with id ${elementId} not found.`);
+                return;
+            }
+
+            const text = element.innerText || element.textContent;
+            currentElementId = elementId;
+            currentSpeech = text;
+
+            console.log(`Sending text to TTS API: ${text}`);
+
+            const response = await fetch('/read_text', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ text: currentSpeech, language: language })
+            });
+
+            if (response.status === 200) {
+                const audioBlob = await response.blob();
+                const audioUrl = URL.createObjectURL(audioBlob);
+                if (audioElement) {
+                    audioElement.pause();
+                }
+                audioElement = new Audio(audioUrl);
+                audioElement.play();
+            } else {
+                const data = await response.json();
+                console.log(`TTS API response:`, data);
+                alert('Error in TTS conversion: ' + data.message);
+            }
+        }   
+
+        function pauseText() {
+            if (audioElement) {
+                audioElement.pause();
+            }
+        }
+
+        function stopText() {
+            if (audioElement) {
+                audioElement.pause();
+                audioElement.currentTime = 0;
+            }
+        }
+
+        function showLoading() {
+            const button = document.getElementById('summarize-button');
+            button.disabled = true;
+            button.innerHTML = `<div class="dots"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>`;
+            document.getElementById('loading').style.display = 'flex';
+        }
+
+        function checkStatus(job_id) {
+            fetch(`/status/${job_id}`)
+                .then(response => response.json())
+                .then(data => {
+                    console.log(`Received data for job ${job_id}:`, data);
+                    const statusElement = document.getElementById(`status-${job_id}`);
+                    const resultDiv = document.getElementById(`result-${job_id}`);
+                    if (data.status === 'finished') {
+                        resultDiv.innerHTML = `
+                            <h3>1. Summary:</h3>
+                            <div id="summary-sections-${job_id}" class="summary-sections">
+                                <p>${data.result.summary["Section"]}</p>
+                            </div>
+                            <div class="buttons-container">
+                                <button type="button" onclick="readText('summary-sections-${job_id}', '${data.result.language}')">Read Summary</button>
+                                <button type="button" onclick="pauseText()">Pause</button>
+                                <button type="button" onclick="stopText()">Stop</button>
+                            </div>
+                            <h3>3. Transcript:</h3>
+                            <p>${data.result.transcript}</p>
+                            <div class="frames-container">
+                                ${data.result.matched_frames.map(frame => `
+                                    <div class="frame">
+                                        <img src="${frame.frame}" alt="${frame.frame}">
+                                        <p>${frame.description}</p>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        `;
+                        statusElement.innerHTML = "Status: Finished";
+                    } else if (data.status === 'failed') {
+                        resultDiv.innerHTML = `<p>Failed: ${data.result}</p>`;
+                        statusElement.innerHTML = "Status: Failed";
+                    } else {
+                        statusElement.innerHTML = "Status: " + data.status;
+                        setTimeout(() => checkStatus(job_id), 5000);
+                    }
+                });
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            const previousRequests = {{ previous_requests | tojson }};
+            previousRequests.forEach(request => {
+                if (request.job_id) {
+                    checkStatus(request.job_id);
+                }
+            });
+        });
+
+        function scrollToSummary(job_id) {
+            const element = document.getElementById(`result-${job_id}`);
+            if (element) {
+                element.scrollIntoView({ behavior: 'smooth' });
+            }
+        }
+    </script>
+</body>
+</html>

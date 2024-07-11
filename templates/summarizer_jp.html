@@ -1,0 +1,697 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YouTubeビデオサマライザー</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <style>
+        body {
+            font-family: 'Poppins', Arial, sans-serif;
+            background-color: #1b1b1b;
+            color: #fff;
+            margin: 0;
+            padding: 0;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #333;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
+            border-radius: 10px;
+        }
+        .content {
+            display: flex;
+            flex-wrap: wrap;
+        }
+        .main-content {
+            flex: 3;
+            padding: 20px;
+        }
+        .sidebar {
+            flex: 1;
+            margin-left: 20px;
+            background: #444;
+            padding: 20px;
+            border: 1px solid #555;
+            border-radius: 10px;
+            text-align: center;
+        }
+        .sidebar h2 {
+            font-size: 20px;
+            margin-bottom: 20px;
+            color: #6495ED;
+        }
+        h1 {
+            text-align: center;
+            color: #6495ED;
+            font-size: 36px;
+            margin-bottom: 20px;
+        }
+        form {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        label {
+            font-weight: 600;
+            margin-bottom: 5px;
+            color: #bbb;
+        }
+        input[type="text"],
+        textarea,
+        select {
+            padding: 15px;
+            border: 1px solid #555;
+            border-radius: 5px;
+            font-size: 16px;
+            background: #222;
+            color: #fff;
+            width: 100%;
+            box-sizing: border-box;
+        }
+        textarea {
+            height: 100px;
+            resize: none;
+        }
+        button {
+            padding: 15px 20px;
+            border: none;
+            border-radius: 5px;
+            background: #6495ED;
+            color: #fff;
+            font-size: 16px;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+        button:hover {
+            background: #4682B4;
+        }
+        .flashes {
+            list-style-type: none;
+            padding: 0;
+        }
+        .flashes li {
+            background: #d9534f;
+            color: #fff;
+            padding: 10px;
+            margin-bottom: 10px;
+            border: 1px solid #d43f3a;
+            border-radius: 5px;
+        }
+        .summary-sections, .transcript-text, .frames-container {
+            background: #444;
+            padding: 20px;
+            border: 1px solid #555;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+        .frames-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+        }
+        .frame {
+            flex: 1 1 calc(33.333% - 40px);
+            background: #222;
+            padding: 20px;
+            border: 1px solid #555;
+            border-radius: 10px;
+            text-align: center;
+        }
+        .frame img {
+            max-width: 100%;
+            height: auto;
+            display: block;
+            margin-bottom: 10px;
+            border-radius: 5px;
+        }
+        .progress-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100px;
+        }
+        .progress-bar {
+            width: 100%;
+            background-color: #555;
+            border-radius: 5px;
+            overflow: hidden;
+        }
+        .progress-bar-inner {
+            height: 30px;
+            width: 0;
+            background-color: #6495ED;
+            text-align: center;
+            line-height: 30px;
+            color: #fff;
+            border-radius: 5px;
+        }
+        .dots {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100%;
+        }
+        .dot {
+            width: 10px;
+            height: 10px;
+            margin: 0 5px;
+            background-color: #6495ED;
+            border-radius: 50%;
+            display: inline-block;
+            animation: bounce 1s infinite;
+        }
+        .dot:nth-child(2) {
+            animation-delay: 0.2s;
+        }
+        .dot:nth-child(3) {
+            animation-delay: 0.4s;
+        }
+        @keyframes bounce {
+            0%, 80%, 100% {
+                transform: scale(0);
+            }
+            40% {
+                transform: scale(1);
+            }
+        }
+        .previous-requests {
+            margin-top: 20px;
+        }
+        .previous-request {
+            border: 1px solid #555;
+            padding: 20px;
+            margin-bottom: 20px;
+            background: #333;
+            border-radius: 10px;
+        }
+        .previous-request h3 {
+            margin: 0 0 10px;
+            color: #6495ED;
+        }
+        .previous-request p {
+            margin: 0;
+        }
+        .previous-request-details {
+            margin: 10px 0;
+        }
+        .status-container {
+            margin-top: 20px;
+        }
+        .buttons-container {
+            margin: 20px 0;
+            text-align: center;
+        }
+        .buttons-container button {
+            margin: 0 10px;
+        }
+        #subject_select_container, #look_for_container {
+            display: none;
+        }
+        .placeholder {
+            color: #bbb;
+        }
+    </style>
+</head>
+<body>
+    <script type="application/json" id="previous-requests">
+        {{ previous_requests|default([]) | tojson }}
+    </script>
+    <div class="container">
+        <div class="content">
+            <div class="main-content">
+                {% if summary %}
+                    <h1>要約</h1>
+                    {% if matched_frames %}
+                        <div class="frame">
+                            <img src="{{ matched_frames[0].frame_url }}" alt="{{ matched_frames[0].frame }}">
+                            <p>{{ matched_frames[0].description }}</p>
+                        </div>
+                    {% endif %}
+                    <div class="summary-sections" id="summary-content">
+                        {% for section, content in summary.items() %}
+                            <h2>AIの要約</h2>
+                            <div>{{ content|safe }}</div>
+                        {% endfor %}
+                    </div>
+                    <div class="buttons-container">
+                        <button type="button" onclick="readText('summary-content', '{{ language }}')">要約を読み上げる</button>
+                        <button type="button" onclick="pauseText()">一時停止</button>
+                        <button type="button" onclick="stopText()">停止</button>
+                        <button type="button" onclick="saveSummary('{{ job_id }}', '{{ youtube_url }}')">要約を保存する</button>
+                    </div>
+                    <h2>トランスクリプト</h2>
+                    <div class="transcript-text">{{ transcript }}</div>
+                    {% if highlighted_transcript %}
+                    <h2>ハイライトされたトランスクリプト</h2>
+                    <div class="transcript-text">{{ highlighted_transcript }}</div>
+                    {% endif %}
+                    <h2>重要なフレーム</h2>
+                    <div class="frames-container">
+                        {% for frame in matched_frames %}
+                            <div class="frame">
+                                <img src="{{ frame.frame_url }}" alt="{{ frame.frame }}">
+                                <p>{{ frame.description }}</p>
+                            </div>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <h1>YouTubeビデオサマライザー</h1>
+                    <p><strong>免責事項:</strong> 15分以上のビデオは対応できません。</p>
+                    <form method="POST" onsubmit="showLoading(); setCustomPrompt();">
+                        <label for="youtube_urls">YouTubeのURL（一行に一つずつ）:</label>
+                        <textarea id="youtube_urls" name="youtube_urls" rows="5" placeholder="例: https://www.youtube.com/watch?v=abcdefghijk" required></textarea>
+
+                        <label for="category_select">ビデオカテゴリを選択:</label>
+                        <select id="category_select" name="category_select" onchange="setCategoryPrompt()">
+                            <option value="" disabled selected>カテゴリを選択</option>
+                            <option value="lectures">講義</option>
+                            <option value="news">ニュース</option>
+                            <option value="tutorials">チュートリアル</option>
+                            <option value="entertainment">エンターテイメント</option>
+                            <option value="custom">カスタムプロンプト</option>
+                        </select>
+
+                        <div id="subject_select_container">
+                            <label for="subject_select">講義の主題を選択:</label>
+                            <select id="subject_select" name="subject_select">
+                                <option value="" disabled selected>主題を選択</option>
+                                <option value="math">数学</option>
+                                <option value="science">科学</option>
+                                <option value="history">歴史</option>
+                                <option value="literature">文学</option>
+                                <option value="economics">経済学</option>
+                                <!-- 必要に応じて主題を追加 -->
+                            </select>
+                        </div>
+
+                        <textarea id="custom_prompt" name="custom_prompt" placeholder="ここにカスタムプロンプトを入力" style="display:none;" class="placeholder"></textarea>
+
+                        <div id="look_for_container">
+                            <label for="look_for">注目するポイント:</label>
+                            <textarea id="look_for" name="look_for" placeholder="例: 重要なポイント、主なアイデア、重要な詳細" class="placeholder"></textarea>
+                        </div>
+
+                        <label for="language">言語:</label>
+                        <select id="language" name="language" required>
+                            <option value="english">英語</option>
+                            <option value="japanese">日本語</option>
+                        </select>
+
+                        <div id="custom_prompt_language_container" style="display:none;">
+                            <label for="custom_prompt_language">カスタムプロンプトの言語:</label>
+                            <select id="custom_prompt_language" name="custom_prompt_language">
+                                <option value="english">英語</option>
+                                <option value="japanese">日本語</option>
+                            </select>
+                        </div>
+
+                        <button id="summarize-button" type="submit">要約する</button>
+                    </form>
+                    <div id="loading" class="progress-container" style="display:none;">
+                        <div class="dots">
+                            <div class="dot"></div>
+                            <div class="dot"></div>
+                            <div class="dot"></div>
+                        </div>
+                    </div>
+                    <div id="progress-bar" class="progress-bar" style="display:none;">
+                        <div id="progress-bar-inner" class="progress-bar-inner">0%</div>
+                    </div>
+                    {% with messages = get_flashed_messages(with_categories=true) %}
+                        {% if messages %}
+                            <ul class="flashes">
+                                {% for category, message in messages %}
+                                    <li class="{{ category }}">{{ message }}</li>
+                                {% endfor %}
+                            </ul>
+                        {% endif %}
+                    {% endwith %}
+                    <div class="results">
+                        {% for result in results %}
+                            <div class="video-summary">
+                                <h2>{{ result.youtube_url }}の要約</h2>
+                                <a href="{{ result.summary_link }}" target="_blank">この要約を見る</a>
+                            </div>
+                        {% endfor %}
+                    </div>
+
+                    <div class="previous-requests">
+                        <h2>以前の要約</h2>
+                        {% for request in previous_requests %}
+                            <div class="previous-request" id="result-{{ request.job_id }}">
+                                <h3><a href="{{ request.youtube_url }}" target="_blank">{{ request.youtube_url }}</a></h3>
+                                <div class="previous-request-details">
+                                    <p><strong>カスタムプロンプト:</strong> {{ request.custom_prompt }}</p>
+                                    <p><strong>注目するポイント:</strong> {{ request.look_for }}</p>
+                                    <p><strong>言語:</strong> {{ request.language }}</p>
+                                </div>
+                                <h3>要約:</h3>
+                                <button onclick="checkStatus('{{ request.job_id }}')">ステータスを確認する</button>
+                                <p id="status-{{ request.job_id }}">ステータス: 確認中...</p>
+                            </div>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            </div>
+            <div class="sidebar">
+                <h2>保存された要約</h2>
+                <div class="buttons-container">
+                    <a href="{{ url_for('saved_summaries_page') }}">
+                        <button type="button">すべての保存された要約を見る</button>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentSpeech;
+        let currentElementId;
+        let audioElement;
+
+        function toggleCustomPrompt() {
+            const selectElement = document.getElementById('custom_prompt_select');
+            const customPromptElement = document.getElementById('custom_prompt');
+            const customPromptLanguageContainer = document.getElementById('custom_prompt_language_container');
+            if (selectElement.value === 'custom') {
+                customPromptElement.style.display = 'block';
+                customPromptLanguageContainer.style.display = 'block';
+            } else {
+                customPromptElement.style.display = 'none';
+                customPromptLanguageContainer.style.display = 'none';
+            }
+        }
+
+        function setCustomPrompt() {
+            const selectElement = document.getElementById('custom_prompt_select');
+            const customPromptElement = document.getElementById('custom_prompt');
+            if (selectElement.value !== 'custom') {
+                customPromptElement.value = selectElement.value;
+            }
+        }
+
+        async function readText(elementId, language) {
+            const element = document.getElementById(elementId);
+            if (!element) {
+                console.error(`Element with id ${elementId} not found.`);
+                return;
+            }
+
+            const text = element.innerText || element.textContent;
+            currentElementId = elementId;
+            currentSpeech = text;
+
+            console.log(`Sending text to TTS API: ${text}`);
+
+            const response = await fetch('/read_text', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ text: currentSpeech, language: language })
+            });
+
+            if (response.status === 200) {
+                const audioBlob = await response.blob();
+                const audioUrl = URL.createObjectURL(audioBlob);
+                if (audioElement) {
+                    audioElement.pause();
+                }
+                audioElement = new Audio(audioUrl);
+                audioElement.play();
+            } else {
+                const data = await response.json();
+                console.log(`TTS API response:`, data);
+                alert('Error in TTS conversion: ' + data.message);
+            }
+        }
+
+        function pauseText() {
+            if (audioElement) {
+                audioElement.pause();
+            }
+        }
+
+        function stopText() {
+            if (audioElement) {
+                audioElement.pause();
+                audioElement.currentTime = 0;
+            }
+        }
+
+        function showLoading() {
+            const button = document.getElementById('summarize-button');
+            button.disabled = true;
+            button.innerHTML = `<div class="dots"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>`;
+            document.getElementById('loading').style.display = 'flex';
+            document.getElementById('progress-bar').style.display = 'block';
+        }
+
+        function updateProgressBar(progress) {
+            const progressBarInner = document.getElementById('progress-bar-inner');
+            progressBarInner.style.width = progress + '%';
+            progressBarInner.textContent = progress + '%';
+        }
+
+        async function saveSummary(job_id, youtube_url) {
+            const summaryElement = document.getElementById(`summary-sections-${job_id}`);
+            const transcriptElement = document.getElementById(`transcript-${job_id}`);
+            const frames = Array.from(document.querySelectorAll(`#frames-${job_id} .frame`)).map(frame => {
+                return {
+                    frame: frame.querySelector('img').src,
+                    description: frame.querySelector('p').innerText
+                };
+            });
+
+            const data = {
+                job_id: job_id,
+                summary: { "Section": summaryElement.innerText },
+                transcript: transcriptElement.innerText,
+                matched_frames: frames,
+                youtube_url: youtube_url  // Include youtube_url in the data
+            };
+
+            const response = await fetch('/save_summary', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(data)
+            });
+
+            const result = await response.json();
+            if (result.status === 'success') {
+                alert(`要約が保存されました! 共有リンク: ${result.link}`);
+            } else {
+                alert(`要約の保存に失敗しました: ${result.message}`);
+            }
+        }
+
+        function handleFinished(job_id, data) {
+            console.log(`Received data for job ${job_id}:`, data);
+            const statusElement = document.getElementById(`status-${job_id}`);
+            const resultDiv = document.getElementById(`result-${job_id}`);
+            console.log('ビデオURL:', data.result.youtube_url);  // Debug log for video URL
+            const matchedFrames = data.result.matched_frames || [];
+
+            // Check if matchedFrames is an array and has elements
+            if (Array.isArray(matchedFrames) && matchedFrames.length > 0) {
+                console.log('Matched Frames:', matchedFrames); // Log matched frames for debugging
+                resultDiv.innerHTML = `
+                    <h3>要約:</h3>
+                    <div id="summary-sections-${job_id}" class="summary-sections">
+                        <p>${data.result.summary["Section"]}</p>
+                    </div>
+                    <div class="buttons-container">
+                        <button type="button" onclick="readText('summary-sections-${job_id}', '${data.result.language}')">要約を読み上げる</button>
+                        <button type="button" onclick="pauseText()">一時停止</button>
+                        <button type="button" onclick="stopText()">停止</button>
+                        <button type="button" onclick="saveSummary('${job_id}', '${data.result.youtube_url}')">要約を保存する</button>
+                    </div>
+                    <h3>トランスクリプト:</h3>
+                    <div id="transcript-${job_id}" class="transcript-text">${data.result.transcript}</div>
+                    <div id="frames-${job_id}" class="frames-container">
+                        ${matchedFrames.map(frame => `
+                            <div class="frame">
+                                <img src="${frame.frame}" alt="${frame.frame}">
+                                <p>${frame.description}</p>
+                            </div>
+                        `).join('')}
+                    </div>
+                `;
+            } else {
+                resultDiv.innerHTML = `<p>一致するフレームがありません。</p>`;
+            }
+            
+            statusElement.innerHTML = "ステータス: 完了";
+            document.getElementById('progress-bar').style.display = 'none';
+        }
+
+        async function checkStatus(job_id) {
+            try {
+                const res = await fetch(`/status/${job_id}`);
+                const data = await res.json();
+                console.log(`Received data for job ${job_id}:`, data);
+                const statusElement = document.getElementById(`status-${job_id}`);
+                const resultDiv = document.getElementById(`result-${job_id}`);
+                
+                if (data.status === 'finished') {
+                    handleFinished(job_id, data);
+                } else if (data.status === 'failed') {
+                    resultDiv.innerHTML = `<p>失敗: ${data.result}</p>`;
+                    statusElement.innerHTML = "ステータス: 失敗";
+                    document.getElementById('progress-bar').style.display = 'none';
+                } else {
+                    updateProgressBar(data.progress);
+                    statusElement.innerHTML = "ステータス: " + data.status;
+                    setTimeout(() => checkStatus(job_id), 5000);
+                }
+            } catch (error) {
+                console.error('ジョブステータスの取得に失敗しました:', error);
+            }
+        }
+    
+        document.addEventListener('DOMContentLoaded', function() {
+            const previousRequests = JSON.parse(document.getElementById('previous-requests').textContent);
+            previousRequests.forEach(request => {
+                if (request.job_id) {
+                    checkStatus(request.job_id);
+                }
+            });
+        });
+
+        function setCategoryPrompt() {
+            const categorySelect = document.getElementById('category_select');
+            const customPromptElement = document.getElementById('custom_prompt');
+            const customPromptLanguageContainer = document.getElementById('custom_prompt_language_container');
+            const subjectSelectContainer = document.getElementById('subject_select_container');
+            const lookForContainer = document.getElementById('look_for_container');
+            const lookForTextarea = document.getElementById('look_for');
+
+            let prompt = "";
+            let lookForText = "";
+
+            switch (categorySelect.value) {
+                case 'lectures':
+                    subjectSelectContainer.style.display = 'block';
+                    lookForContainer.style.display = 'none'; // Hide look_for field when subject is to be selected
+                    lookForText = "";
+                    break;
+                case 'news':
+                    subjectSelectContainer.style.display = 'none';
+                    lookForContainer.style.display = 'none';
+                    prompt = "このビデオで議論された主なニュース項目と重要なポイントを強調してください。";
+                    lookForText = "スライド、リスト、プレゼンテーション、チャート、インフォグラフィック、指示、主なニュース項目、重要なポイント";
+                    break;
+                case 'AI Blogs / News':
+                    subjectSelectContainer.style.display = 'none';
+                    lookForContainer.style.display = 'none';
+                    prompt = "このビデオで議論された主なアイデア、情報、ニュース項目、および重要なポイントを強調してください。";
+                    lookForText = "スライド、リスト、プレゼンテーション、チャート、インフォグラフィック、指示、主なニュース項目、AI、LLM、ニューラルネットワーク、Open AI、モデル、トレーニング、学習、GPTに関連する重要なポイント";
+                    break;
+                case 'tutorials':
+                    subjectSelectContainer.style.display = 'none';
+                    lookForContainer.style.display = 'none';
+                    prompt = "このチュートリアルで提示されたステップと重要な情報の詳細な要約を提供してください。";
+                    lookForText = "スライド、リスト、プレゼンテーション、チャート、インフォグラフィック、指示、ステップ、重要な情報";
+                    break;
+                case 'entertainment':
+                    subjectSelectContainer.style.display = 'none';
+                    lookForContainer.style.display = 'none';
+                    prompt = "このエンターテイメントビデオの主なプロットポイントと興味深い瞬間を要約してください。";
+                    lookForText = "スライド、リスト、プレゼンテーション、チャート、インフォグラフィック、指示、主なプロットポイント、興味深い瞬間";
+                    break;
+                case 'custom':
+                    subjectSelectContainer.style.display = 'none';
+                    lookForContainer.style.display = 'block';
+                    customPromptElement.style.display = 'block';
+                    customPromptLanguageContainer.style.display = 'block';
+                    return; // Don't set lookForTextarea.value here since it's custom
+                default:
+                    subjectSelectContainer.style.display = 'none';
+                    lookForContainer.style.display = 'none';
+                    prompt = "";
+                    lookForText = "";
+            }
+
+            customPromptElement.style.display = 'none';
+            customPromptElement.value = prompt;
+            customPromptLanguageContainer.style.display = 'none';
+            lookForTextarea.value = lookForText;
+        }
+
+        function setLecturePrompt() {
+            const subjectSelect = document.getElementById('subject_select');
+            const customPromptElement = document.getElementById('custom_prompt');
+            const lookForTextarea = document.getElementById('look_for');
+            
+            let prompt = "";
+            let lookForText = "";
+
+            switch (subjectSelect.value) {
+                case 'math':
+                    prompt = "この数学講義の重要なポイントと主な議論を要約してください。宿題の課題を含め、重要なコンテキストの手がかりを使用して重要な概念を強調してください。";
+                    lookForText = "ノート、手書きのノート、チャート、図、スライド、番号付きセクション、宿題の課題、重要なコンテキストの手がかり、数学の重要な概念、方程式、公式、数字、グラフ、インフォグラフィック";
+                    break;
+                case 'science':
+                    prompt = "この科学講義の重要なポイントと主な議論を要約してください。宿題の課題を含め、重要なコンテキストの手がかりを使用して科学的原則を強調してください。";
+                    lookForText = "ノート、手書きのノート、チャート、図、スライド、番号付きセクション、重要なポイント、主な議論、宿題の課題、重要なコンテキストの手がかり、科学的原則、インフォグラフィック";
+                    break;
+                case 'history':
+                    prompt = "この歴史講義の重要なポイントと主な議論を要約してください。宿題の課題を含め、重要なコンテキストの手がかりを使用して歴史的な出来事や人物を強調してください。";
+                    lookForText = "ノート、手書きのノート、チャート、図、スライド、番号付きセクション、重要なポイント、主な議論、宿題の課題、重要なコンテキストの手がかり、歴史的な出来事や人物、インフォグラフィック";
+                    break;
+                case 'literature':
+                    prompt = "この文学講義の重要なポイントと主な議論を要約してください。宿題の課題を含め、重要なコンテキストの手がかりを使用して文学的なテーマや分析を強調してください。";
+                    lookForText = "ノート、手書きのノート、チャート、図、スライド、番号付きセクション、重要なポイント、主な議論、宿題の課題、重要なコンテキストの手がかり、文学的なテーマや分析、インフォグラフィック";
+                    break;
+                case 'economics':
+                    prompt = "この経済学講義の重要なポイントと主な議論を要約してください。宿題の課題を含め、重要なコンテキストの手がかりを使用して経済理論や実際の応用を強調してください。また、グラフや表示されたもの、言及された重要なポイントについての情報も含めてください。";
+                    lookForText = "ノート、手書きのノート、チャート、図、スライド、番号付きセクション、重要なポイント、主な議論、宿題の課題、重要なコンテキストの手がかり、経済理論、実際の応用、グラフ、言及された重要なポイント";
+                    break;
+                default:
+                    prompt = "";
+                    lookForText = "";
+            }
+
+            customPromptElement.value = prompt;
+            lookForTextarea.value = lookForText;
+        }
+
+        document.getElementById('subject_select').addEventListener('change', function() {
+            setLecturePrompt();
+        });
+
+        document.getElementById('custom_prompt').addEventListener('focus', function() {
+            if (this.value === 'ここにカスタムプロンプトを入力') {
+                this.value = '';
+                this.classList.remove('placeholder');
+            }
+        });
+
+        document.getElementById('custom_prompt').addEventListener('blur', function() {
+            if (this.value === '') {
+                this.value = 'ここにカスタムプロンプトを入力';
+                this.classList.add('placeholder');
+            }
+        });
+
+        document.getElementById('look_for').addEventListener('focus', function() {
+            if (this.value === '例: 重要なポイント、主なアイデア、重要な詳細') {
+                this.value = '';
+                this.classList.remove('placeholder');
+            }
+        });
+
+        document.getElementById('look_for').addEventListener('blur', function() {
+            if (this.value === '') {
+                this.value = '例: 重要なポイント、主なアイデア、重要な詳細';
+                this.classList.add('placeholder');
+            }
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,713 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YouTube Video Summarizer</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <style>
+        body {
+            font-family: 'Poppins', Arial, sans-serif;
+            background-color: #1b1b1b;
+            color: #fff;
+            margin: 0;
+            padding: 0;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #333;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
+            border-radius: 10px;
+        }
+        .content {
+            display: flex;
+            flex-wrap: wrap;
+        }
+        .main-content {
+            flex: 3;
+            padding: 20px;
+        }
+        .sidebar {
+            flex: 1;
+            margin-left: 20px;
+            background: #444;
+            padding: 20px;
+            border: 1px solid #555;
+            border-radius: 10px;
+            text-align: center;
+        }
+        .sidebar h2 {
+            font-size: 20px;
+            margin-bottom: 20px;
+            color: #6495ED;
+        }
+        h1 {
+            text-align: center;
+            color: #6495ED;
+            font-size: 36px;
+            margin-bottom: 20px;
+        }
+        form {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        label {
+            font-weight: 600;
+            margin-bottom: 5px;
+            color: #bbb;
+        }
+        input[type="text"],
+        textarea,
+        select {
+            padding: 15px;
+            border: 1px solid #555;
+            border-radius: 5px;
+            font-size: 16px;
+            background: #222;
+            color: #fff;
+            width: 100%;
+            box-sizing: border-box;
+        }
+        textarea {
+            height: 100px;
+            resize: none;
+        }
+        button {
+            padding: 15px 20px;
+            border: none;
+            border-radius: 5px;
+            background: #6495ED;
+            color: #fff;
+            font-size: 16px;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+        button:hover {
+            background: #4682B4;
+        }
+        .flashes {
+            list-style-type: none;
+            padding: 0;
+        }
+        .flashes li {
+            background: #d9534f;
+            color: #fff;
+            padding: 10px;
+            margin-bottom: 10px;
+            border: 1px solid #d43f3a;
+            border-radius: 5px;
+        }
+        .summary-sections, .transcript-text, .frames-container {
+            background: #444;
+            padding: 20px;
+            border: 1px solid #555;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+        .frames-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+        }
+        .frame {
+            flex: 1 1 calc(33.333% - 40px);
+            background: #222;
+            padding: 20px;
+            border: 1px solid #555;
+            border-radius: 10px;
+            text-align: center;
+        }
+        .frame img {
+            max-width: 100%;
+            height: auto;
+            display: block;
+            margin-bottom: 10px;
+            border-radius: 5px;
+        }
+        .progress-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100px;
+        }
+        .progress-bar {
+            width: 100%;
+            background-color: #555;
+            border-radius: 5px;
+            overflow: hidden;
+        }
+        .progress-bar-inner {
+            height: 30px;
+            width: 0;
+            background-color: #6495ED;
+            text-align: center;
+            line-height: 30px;
+            color: #fff;
+            border-radius: 5px;
+        }
+        .dots {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100%;
+        }
+        .dot {
+            width: 10px;
+            height: 10px;
+            margin: 0 5px;
+            background-color: #6495ED;
+            border-radius: 50%;
+            display: inline-block;
+            animation: bounce 1s infinite;
+        }
+        .dot:nth-child(2) {
+            animation-delay: 0.2s;
+        }
+        .dot:nth-child(3) {
+            animation-delay: 0.4s;
+        }
+        @keyframes bounce {
+            0%, 80%, 100% {
+                transform: scale(0);
+            }
+            40% {
+                transform: scale(1);
+            }
+        }
+        .previous-requests {
+            margin-top: 20px;
+        }
+        .previous-request {
+            border: 1px solid #555;
+            padding: 20px;
+            margin-bottom: 20px;
+            background: #333;
+            border-radius: 10px;
+        }
+        .previous-request h3 {
+            margin: 0 0 10px;
+            color: #6495ED;
+        }
+        .previous-request p {
+            margin: 0;
+        }
+        .previous-request-details {
+            margin: 10px 0;
+        }
+        .status-container {
+            margin-top: 20px;
+        }
+        .buttons-container {
+            margin: 20px 0;
+            text-align: center;
+        }
+        .buttons-container button {
+            margin: 0 10px;
+        }
+        #subject_select_container, #look_for_container {
+            display: none;
+        }
+        .placeholder {
+            color: #bbb;
+        }
+    </style>
+</head>
+<body>
+    <script type="application/json" id="previous-requests">
+        {{ previous_requests | tojson }}
+    </script>
+    <div class="container">
+        <div class="content">
+            <div class="main-content">
+                {% if summary %}
+                    <h1>Summary</h1>
+                    {% if matched_frames %}
+                        <div class="frame">
+                            <img src="{{ matched_frames[0].frame_url }}" alt="{{ matched_frames[0].frame }}">
+                            <p>{{ matched_frames[0].description }}</p>
+                        </div>
+                    {% endif %}
+                    <div class="summary-sections" id="summary-content">
+                        {% for section, content in summary.items() %}
+                            <h2>AI Summary</h2>
+                            <div>{{ content|safe }}</div>
+                        {% endfor %}
+                    </div>
+                    <div class="buttons-container">
+                        <button type="button" onclick="readText('summary-content', '{{ language }}')">Read Summary</button>
+                        <button type="button" onclick="pauseText()">Pause</button>
+                        <button type="button" onclick="stopText()">Stop</button>
+                        <button type="button" onclick="saveSummary('{{ job_id }}', '{{ youtube_url }}')">Save Summary</button>
+                    </div>
+                    <h2>Transcript</h2>
+                    <div class="transcript-text">{{ transcript }}</div>
+                    {% if highlighted_transcript %}
+                    <h2>Highlighted Transcript</h2>
+                    <div class="transcript-text">{{ highlighted_transcript }}</div>
+                    {% endif %}
+                    <h2>Key Frames</h2>
+                    <div class="frames-container">
+                        {% for frame in matched_frames %}
+                            <div class="frame">
+                                <img src="{{ frame.frame_url }}" alt="{{ frame.frame }}">
+                                <p>{{ frame.description }}</p>
+                            </div>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <h1>YouTube Video Summarizer</h1>
+                    <p><strong>Disclaimer:</strong> No videos longer than 15 minutes.</p>
+                    <form method="POST" onsubmit="showLoading(); setCustomPrompt();">
+                        <label for="youtube_urls">YouTube URLs (one per line):</label>
+                        <textarea id="youtube_urls" name="youtube_urls" rows="5" placeholder="e.g., https://www.youtube.com/watch?v=abcdefghijk" required></textarea>
+
+                        <label for="category_select">Select Video Category:</label>
+                        <select id="category_select" name="category_select" onchange="setCategoryPrompt()">
+                            <option value="" disabled selected>Select a category</option>
+                            <option value="lectures">Lectures</option>
+                            <option value="ai">AI</option>
+                            <option value="startup">Startup Pitches</option>
+                            <option value="news">News</option>
+                            <option value="tutorials">Tutorials</option>
+                            <option value="entertainment">Entertainment</option>
+                            <option value="custom">Custom Prompt</option>
+                        </select>
+
+                        <div id="subject_select_container">
+                            <label for="subject_select">Select Subject for Lectures:</label>
+                            <select id="subject_select" name="subject_select">
+                                <option value="" disabled selected>Select a subject</option>
+                                <option value="math">Math</option>
+                                <option value="science">Science</option>
+                                <option value="history">History</option>
+                                <option value="literature">Literature</option>
+                                <option value="economics">Economics</option>
+                                <option value="ap_computer_science">AP Computer Science</option>
+                                <!-- Add more subjects as needed -->
+                            </select>
+                        </div>
+
+                        <textarea id="custom_prompt" name="custom_prompt" placeholder="e.g., Highlight the main ideas, information, new, items and key points discussed in this video. " style="display:none;" class="placeholder"></textarea>
+
+                        <div id="look_for_container">
+                            <label for="look_for">What to Look For:</label>
+                            <textarea id="look_for" name="look_for" placeholder="e.g., key points, main ideas, important details" class="placeholder"></textarea>
+                        </div>
+
+                        <label for="language">Language:</label>
+                        <select id="language" name="language" required>
+                            <option value="english">English</option>
+                            <option value="japanese">Japanese</option>
+                        </select>
+
+                        <div id="custom_prompt_language_container" style="display:none;">
+                            <label for="custom_prompt_language">Custom Prompt Language:</label>
+                            <select id="custom_prompt_language" name="custom_prompt_language">
+                                <option value="english">English</option>
+                                <option value="japanese">Japanese</option>
+                            </select>
+                        </div>
+
+                        <button id="summarize-button" type="submit">Summarize</button>
+                    </form>
+                    <div id="loading" class="progress-container" style="display:none;">
+                        <div class="dots">
+                            <div class="dot"></div>
+                            <div class="dot"></div>
+                            <div class="dot"></div>
+                        </div>
+                    </div>
+                    <div id="progress-bar" class="progress-bar" style="display:none;">
+                        <div id="progress-bar-inner" class="progress-bar-inner">0%</div>
+                    </div>
+                    {% with messages = get_flashed_messages(with_categories=true) %}
+                        {% if messages %}
+                            <ul class="flashes">
+                                {% for category, message in messages %}
+                                    <li class="{{ category }}">{{ message }}</li>
+                                {% endfor %}
+                            </ul>
+                        {% endif %}
+                    {% endwith %}
+                    <div class="results">
+                        {% for result in results %}
+                            <div class="video-summary">
+                                <h2>Summary for {{ result.youtube_url }}</h2>
+                                <a href="{{ result.summary_link }}" target="_blank">View this summary</a>
+                            </div>
+                        {% endfor %}
+                    </div>
+
+                    <div class="previous-requests">
+                        <h2>Previous Summarizations</h2>
+                        {% for request in previous_requests %}
+                            <div class="previous-request" id="result-{{ request.job_id }}">
+                                <h3><a href="{{ request.youtube_url }}" target="_blank">{{ request.youtube_url }}</a></h3>
+                                <div class="previous-request-details">
+                                    <p><strong>Custom Prompt:</strong> {{ request.custom_prompt }}</p>
+                                    <p><strong>Look For:</strong> {{ request.look_for }}</p>
+                                    <p><strong>Language:</strong> {{ request.language }}</p>
+                                </div>
+                                <h3>Summary:</h3>
+                                <button onclick="checkStatus('{{ request.job_id }}')">Check Status</button>
+                                <p id="status-{{ request.job_id }}">Status: Checking...</p>
+                            </div>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            </div>
+            <div class="sidebar">
+                <h2>Saved Summaries</h2>
+                <div class="buttons-container">
+                    <a href="{{ url_for('saved_summaries_page') }}">
+                        <button type="button">View All Saved Summaries</button>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentSpeech;
+        let currentElementId;
+        let audioElement;
+
+        function toggleCustomPrompt() {
+            const selectElement = document.getElementById('custom_prompt_select');
+            const customPromptElement = document.getElementById('custom_prompt');
+            const customPromptLanguageContainer = document.getElementById('custom_prompt_language_container');
+            if (selectElement.value === 'custom') {
+                customPromptElement.style.display = 'block';
+                customPromptLanguageContainer.style.display = 'block';
+            } else {
+                customPromptElement.style.display = 'none';
+                customPromptLanguageContainer.style.display = 'none';
+            }
+        }
+
+        function setCustomPrompt() {
+            const selectElement = document.getElementById('custom_prompt_select');
+            const customPromptElement = document.getElementById('custom_prompt');
+            if (selectElement.value !== 'custom') {
+                customPromptElement.value = selectElement.value;
+            }
+        }
+
+        async function readText(elementId, language) {
+            const element = document.getElementById(elementId);
+            if (!element) {
+                console.error(`Element with id ${elementId} not found.`);
+                return;
+            }
+
+            const text = element.innerText || element.textContent;
+            currentElementId = elementId;
+            currentSpeech = text;
+
+            console.log(`Sending text to TTS API: ${text}`);
+
+            const response = await fetch('/read_text', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ text: currentSpeech, language: language })
+            });
+
+            if (response.status === 200) {
+                const audioBlob = await response.blob();
+                const audioUrl = URL.createObjectURL(audioBlob);
+                if (audioElement) {
+                    audioElement.pause();
+                }
+                audioElement = new Audio(audioUrl);
+                audioElement.play();
+            } else {
+                const data = await response.json();
+                console.log(`TTS API response:`, data);
+                alert('Error in TTS conversion: ' + data.message);
+            }
+        }
+
+        function pauseText() {
+            if (audioElement) {
+                audioElement.pause();
+            }
+        }
+
+        function stopText() {
+            if (audioElement) {
+                audioElement.pause();
+                audioElement.currentTime = 0;
+            }
+        }
+
+        function showLoading() {
+            const button = document.getElementById('summarize-button');
+            button.disabled = true;
+            button.innerHTML = `<div class="dots"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>`;
+            document.getElementById('loading').style.display = 'flex';
+            document.getElementById('progress-bar').style.display = 'block';
+        }
+
+        function updateProgressBar(progress) {
+            const progressBarInner = document.getElementById('progress-bar-inner');
+            progressBarInner.style.width = progress + '%';
+            progressBarInner.textContent = progress + '%';
+        }
+
+        async function saveSummary(job_id, youtube_url) {
+            const summaryElement = document.getElementById(`summary-sections-${job_id}`);
+            const transcriptElement = document.getElementById(`transcript-${job_id}`);
+            const frames = Array.from(document.querySelectorAll(`#frames-${job_id} .frame`)).map(frame => {
+                return {
+                    frame: frame.querySelector('img').src,
+                    description: frame.querySelector('p').innerText
+                };
+            });
+
+            const data = {
+                job_id: job_id,
+                summary: { "Section": summaryElement.innerText },
+                transcript: transcriptElement.innerText,
+                matched_frames: frames,
+                youtube_url: youtube_url  // Include youtube_url in the data
+            };
+
+            const response = await fetch('/save_summary', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(data)
+            });
+
+            const result = await response.json();
+            if (result.status === 'success') {
+                alert(`Summary saved! Shareable link: ${result.link}`);
+            } else {
+                alert(`Error saving summary: ${result.message}`);
+            }
+        }
+
+        function handleFinished(job_id, data) {
+            console.log(`Received data for job ${job_id}:`, data);
+            const statusElement = document.getElementById(`status-${job_id}`);
+            const resultDiv = document.getElementById(`result-${job_id}`);
+            console.log('Video URL:', data.result.youtube_url);  // Debug log for video URL
+            const matchedFrames = data.result.matched_frames || [];
+
+            // Check if matchedFrames is an array and has elements
+            if (Array.isArray(matchedFrames) && matchedFrames.length > 0) {
+                console.log('Matched Frames:', matchedFrames); // Log matched frames for debugging
+                resultDiv.innerHTML = `
+                    <h3>Summary:</h3>
+                    <div id="summary-sections-${job_id}" class="summary-sections">
+                        <p>${data.result.summary["Section"]}</p>
+                    </div>
+                    <div class="buttons-container">
+                        <button type="button" onclick="readText('summary-sections-${job_id}', '${data.result.language}')">Read Summary</button>
+                        <button type="button" onclick="pauseText()">Pause</button>
+                        <button type="button" onclick="stopText()">Stop</button>
+                        <button type="button" onclick="saveSummary('${job_id}', '${data.result.youtube_url}')">Save Summary</button>
+                    </div>
+                    <h3>Transcript:</h3>
+                    <div id="transcript-${job_id}" class="transcript-text">${data.result.transcript}</div>
+                    <div id="frames-${job_id}" class="frames-container">
+                        ${matchedFrames.map(frame => `
+                            <div class="frame">
+                                <img src="${frame.frame}" alt="${frame.frame}">
+                                <p>${frame.description}</p>
+                            </div>
+                        `).join('')}
+                    </div>
+                `;
+            } else {
+                resultDiv.innerHTML = `<p>No frames matched.</p>`;
+            }
+            
+            statusElement.innerHTML = "Status: Finished";
+            document.getElementById('progress-bar').style.display = 'none';
+        }
+
+        async function checkStatus(job_id) {
+            try {
+                const res = await fetch(`/status/${job_id}`);
+                const data = await res.json();
+                console.log(`Received data for job ${job_id}:`, data);
+                const statusElement = document.getElementById(`status-${job_id}`);
+                const resultDiv = document.getElementById(`result-${job_id}`);
+                
+                if (data.status === 'finished') {
+                    handleFinished(job_id, data);
+                } else if (data.status === 'failed') {
+                    resultDiv.innerHTML = `<p>Failed: ${data.result}</p>`;
+                    statusElement.innerHTML = "Status: Failed";
+                    document.getElementById('progress-bar').style.display = 'none';
+                } else {
+                    updateProgressBar(data.progress);
+                    statusElement.innerHTML = "Status: " + data.status;
+                    setTimeout(() => checkStatus(job_id), 5000);
+                }
+            } catch (error) {
+                console.error('Failed to fetch job status:', error);
+            }
+        }
+    
+        document.addEventListener('DOMContentLoaded', function() {
+            const previousRequests = JSON.parse(document.getElementById('previous-requests').textContent);
+            previousRequests.forEach(request => {
+                if (request.job_id) {
+                    checkStatus(request.job_id);
+                }
+            });
+        });
+
+        function setCategoryPrompt() {
+            const categorySelect = document.getElementById('category_select');
+            const customPromptElement = document.getElementById('custom_prompt');
+            const customPromptLanguageContainer = document.getElementById('custom_prompt_language_container');
+            const subjectSelectContainer = document.getElementById('subject_select_container');
+            const lookForContainer = document.getElementById('look_for_container');
+            const lookForTextarea = document.getElementById('look_for');
+
+            let prompt = "";
+            let lookForText = "";
+
+            switch (categorySelect.value) {
+                case 'lectures':
+                    subjectSelectContainer.style.display = 'block';
+                    lookForContainer.style.display = 'none'; // Hide look_for field when subject is to be selected
+                    lookForText = "";
+                    break;
+                case 'news':
+                    subjectSelectContainer.style.display = 'none';
+                    lookForContainer.style.display = 'none';
+                    prompt = "Highlight the main news items and key points discussed in this video.";
+                    lookForText = "slides, lists, presentations, charts, infographics, instructions, main news items, key points";
+                    break;
+                case 'ai':
+                    subjectSelectContainer.style.display = 'none';
+                    lookForContainer.style.display = 'none';
+                    prompt = "Highlight the main ideas, information, news, items and key points discussed in this video.";
+                    lookForText = "slides, lists, presentations, charts, infographics, instructions, main news items, key points relating to AI, LLM, Neural network, Open AI, model, training, learning, GPT";
+                    break;
+                case 'tutorials':
+                    subjectSelectContainer.style.display = 'none';
+                    lookForContainer.style.display = 'none';
+                    prompt = "Provide a detailed summary of the steps and key information presented in this tutorial.";
+                    lookForText = "slides, lists, presentations, charts, infographics, instructions, steps, key information";
+                    break;
+                case 'entertainment':
+                    subjectSelectContainer.style.display = 'none';
+                    lookForContainer.style.display = 'none';
+                    prompt = "Summarize the main plot points and interesting moments in this entertainment video.";
+                    lookForText = "slides, lists, presentations, charts, infographics, instructions, main plot points, interesting moments";
+                    break;
+                case 'startup':
+                    subjectSelectContainer.style.display = 'none';
+                    lookForContainer.style.display = 'none';
+                    prompt = "Highlight the main ideas, information, innovation, product, team, sales numbers, founders details of the startup company being presented in this video.";
+                    lookForText = "slides, lists, presentations, charts, infographics, instructions, main idea innovation, product ideas, sales numbers, schools, financials, customers, market, product market fit, sales, AI, LLM, Neural network, Open AI, model, training, learning, GPT";
+                    break;
+                case 'custom':
+                    subjectSelectContainer.style.display = 'none';
+                    lookForContainer.style.display = 'block';
+                    customPromptElement.style.display = 'block';
+                    customPromptLanguageContainer.style.display = 'block';
+                    return; // Don't set lookForTextarea.value here since it's custom
+                default:
+                    subjectSelectContainer.style.display = 'none';
+                    lookForContainer.style.display = 'none';
+                    prompt = "";
+                    lookForText = "";
+            }
+
+            customPromptElement.style.display = 'none';
+            customPromptElement.value = prompt;
+            customPromptLanguageContainer.style.display = 'none';
+            lookForTextarea.value = lookForText;
+        }
+
+        function setLecturePrompt() {
+            const subjectSelect = document.getElementById('subject_select');
+            const customPromptElement = document.getElementById('custom_prompt');
+            const lookForTextarea = document.getElementById('look_for');
+            
+            let prompt = "";
+            let lookForText = "";
+
+            switch (subjectSelect.value) {
+                case 'math':
+                    prompt = "Summarize the key points and main arguments of this math lecture. Include any homework assignments and use important context clues to highlight key concepts.";
+                    lookForText = "notes, hand written notes, charts, diagrams, slides, Numbered Sections, homework assignments, important context clues, key concepts in math, equations, formulas, numbers, graphs, infographics";
+                    break;
+                case 'science':
+                    prompt = "Summarize the key points and main arguments of this science lecture. Include any homework assignments and use important context clues to highlight scientific principles.";
+                    lookForText = "notes, hand written notes, charts, diagrams, slides, Numbered Sections, key points, main arguments, homework assignments, important context clues, scientific principles, infographics";
+                    break;
+                case 'history':
+                    prompt = "Summarize the key points and main arguments of this history lecture. Include any homework assignments and use important context clues to highlight historical events and figures.";
+                    lookForText = "notes, hand written notes, charts, diagrams, slides, Numbered Sections, key points, main arguments, homework assignments, important context clues, historical events and figures, infographics";
+                    break;
+                case 'literature':
+                    prompt = "Summarize the key points and main arguments of this literature lecture. Include any homework assignments and use important context clues to highlight literary themes and analysis.";
+                    lookForText = "notes, hand written notes, charts, diagrams, slides, Numbered Sections, key points, main arguments, homework assignments, important context clues, literary themes and analysis, infographics";
+                    break;
+                case 'economics':
+                    prompt = "Summarize the key points and main arguments of this economics lecture. Include any homework assignments and use important context clues to highlight economic theories and real-world applications. Also include information about the graphs and anything shown and any keypoints mentioned.";
+                    lookForText = "notes, hand written notes, charts, diagrams, slides, Numbered Sections, key points, main arguments, homework assignments, important context clues, economic theories, real-world applications, graphs, key points mentioned";
+                    break;
+
+                case 'ap_computer_science':  // Added this case
+                    prompt = "Summarize the key points and main arguments of this AP Computer Science lecture. Include any homework assignments and use important context clues to highlight programming concepts and problem-solving techniques.";
+                    lookForText = "notes, hand written notes, charts, diagrams, slides, Numbered Sections, key points, main arguments, homework assignments, important context clues, programming concepts, problem-solving techniques, code examples";
+                    break;
+
+                    
+                default:
+                    prompt = "";
+                    lookForText = "";
+            }
+
+            customPromptElement.value = prompt;
+            lookForTextarea.value = lookForText;
+        }
+
+        document.getElementById('subject_select').addEventListener('change', function() {
+            setLecturePrompt();
+        });
+
+        document.getElementById('custom_prompt').addEventListener('focus', function() {
+            if (this.value === 'e.g., Highlight the main ideas, information, new, items and key points discussed in this video. ') {
+                this.value = '';
+                this.classList.remove('placeholder');
+            }
+        });
+
+        document.getElementById('custom_prompt').addEventListener('blur', function() {
+            if (this.value === '') {
+                this.value = 'e.g., Highlight the main ideas, information, new, items and key points discussed in this video. ';
+                this.classList.add('placeholder');
+            }
+        });
+
+        document.getElementById('look_for').addEventListener('focus', function() {
+            if (this.value === 'e.g., key points, main ideas, important details') {
+                this.value = '';
+                this.classList.remove('placeholder');
+            }
+        });
+
+        document.getElementById('look_for').addEventListener('blur', function() {
+            if (this.value === '') {
+                this.value = 'e.g., key points, main ideas, important details';
+                this.classList.add('placeholder');
+            }
+        });
+    </script>
+</body>
+</html>

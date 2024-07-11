@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Welcome to Aivon</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap');
+
+        body {
+            font-family: 'Poppins', Arial, sans-serif;
+        }
+
+        .hero-section {
+            background-image: url('frames/sc1.png'); /* Update with your background image path */
+            background-size: cover;
+            background-position: center;
+            height: 60vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column; /* Align items vertically */
+            text-align: center;
+        }
+
+        .animation-bar {
+            background: linear-gradient(to right, #00ff00, #ff0000);
+            animation: slide 2s infinite linear;
+        }
+
+        @keyframes slide {
+            0% { background-position: 0% 0%; }
+            100% { background-position: 100% 0%; }
+        }
+
+        .typing-animation {
+            overflow: hidden;
+            white-space: nowrap;
+            border-right: 3px solid #FFD700; /* Change cursor color to gold */
+            animation: blink 0.75s step-end infinite;
+            height: 30px; /* Set a fixed height */
+            color: #FF0000; /* Change text color to red */
+
+        }
+
+        @keyframes blink {
+            from, to { border-right-color: transparent; }
+            50% { border-right-color: #8AB4F8; }
+        }
+
+        .fade-in {
+            opacity: 0;
+            animation: fadeIn 2s forwards;
+        }
+
+        @keyframes fadeIn {
+            to { opacity: 1; }
+        }
+
+        .slide-in {
+            opacity: 0;
+            transform: translateX(-100%);
+            transition: opacity 1s ease-out, transform 1s ease-out;
+        }
+
+        .slide-in-visible {
+            opacity: 1;
+            transform: translateX(0);
+        }
+
+        .hidden {
+            opacity: 0;
+            transition: opacity 0.5s ease-out;
+        }
+
+        .about-section {
+            margin: 20px auto; /* Center the section with margins */
+            max-width: 800px; /* Set a maximum width for the box */
+        }
+
+        .about-section h2 {
+            font-size: 1.5rem; /* Smaller font size for the heading */
+        }
+
+        .about-section p {
+            font-size: 0.875rem; /* Smaller font size for the paragraphs */
+        }
+
+    </style>
+</head>
+<body class="bg-gray-900 text-gray-100 m-0 p-0">
+    <div class="animation-bar w-full h-2 absolute top-0"></div>
+    <div class="hero-section">
+        <h1 class="text-4xl md:text-5xl mb-8 text-black fade-in">Welcome to Aivon</h1>
+        <div class="typing-animation-container h-9 mx-auto inline-block fade-in">
+            <div class="typing-animation text-lg md:text-xl font-normal" id="typing-animation"></div>
+        </div>
+        <p class="mt-4 text-lg md:text-xl text-black fade-in">Save time. Let Aivon watch and summarize the main points for you.</p>
+        <div class="buttons-container mt-8 flex flex-col md:flex-row justify-center gap-5 fade-in">
+            <a href="{{ url_for('summarizer') }}" class="bg-blue-500 text-white text-lg py-3 px-5 rounded-lg hover:bg-blue-600 transition duration-300" aria-label="Go to Video Summarizer">Go to Video Summarizer</a>
+            <a href="{{ url_for('saved_summaries_page') }}" class="bg-blue-500 text-white text-lg py-3 px-5 rounded-lg hover:bg-blue-600 transition duration-300" aria-label="View Saved Summaries">View Saved Summaries</a>
+            <a href="{{ url_for('summarizer_jp') }}" class="bg-blue-500 text-white text-lg py-3 px-5 rounded-lg hover:bg-blue-600 transition duration-300" aria-label="日本語サマライザーへ行く">日本語サマライザーへ行く</a>
+        </div>
+    </div>
+    <div class="container mx-auto my-6 p-4 md:p-10 bg-gray-800 shadow-lg rounded-lg text-left slide-in about-section" id="about-container">
+        <h2 class="text-2xl md:text-4xl text-blue-400 mb-4">About the Website</h2>
+        <p class="text-base md:text-lg mb-4">
+            Aivon is a lifesaver! It watches lecture videos for you, finds any homework that's due, and sums up all the important points and study materials you might have missed. Basically, it makes school a whole lot easier.
+        </p>
+        <p class="text-base md:text-lg mb-4">
+            Whether you're a student, a teacher, or even a professional, Aivon can save you a ton of time by summarizing YouTube videos so you can focus on what really matters. It supports multiple languages, like English and Japanese, so anyone can use it.
+        </p>
+        <p class="text-base md:text-lg mb-4">
+            With Aivon, you get the key info without spending hours watching videos. Start using Aivon today and keep on top of your game. Let's make school life easier together.
+        </p>
+    </div>
+    <script>
+        const phrases = [
+            "Your YouTube Guru",
+            "Your Smart Summarizer",
+            "Your Info Scout"
+        ];
+        let i = 0;
+        const typingElement = document.getElementById('typing-animation');
+
+        function typePhrase() {
+            let j = 0;
+            typingElement.innerHTML = '';
+            const interval = setInterval(() => {
+                typingElement.innerHTML += phrases[i][j];
+                j++;
+                if (j === phrases[i].length) {
+                    clearInterval(interval);
+                    setTimeout(() => {
+                        const deleteInterval = setInterval(() => {
+                            typingElement.innerHTML = typingElement.innerHTML.slice(0, -1);
+                            if (typingElement.innerHTML.length === 0) {
+                                clearInterval(deleteInterval);
+                                i = (i + 1) % phrases.length;
+                                setTimeout(typePhrase, 500);
+                            }
+                        }, 50);
+                    }, 1000);
+                }
+            }, 100);
+        }
+
+        setTimeout(typePhrase, 500);
+
+        // Automatically slide-in "About the Website" section 1 second after page load
+        const aboutContainer = document.getElementById('about-container');
+        setTimeout(() => {
+            aboutContainer.classList.add('slide-in-visible');
+        }, 1000);
+    </script>
+</body>
+</html>
